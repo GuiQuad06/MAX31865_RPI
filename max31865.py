@@ -59,23 +59,23 @@ class max31865(object):
 		# 0x8x to specify 'write register value'
 		# 0xx0 to specify 'configuration register'
 		#
-		# 0b10110010 = 0xB2
+		# 0b10100011 = 0xA3
 		# Config Register
 		# ---------------
 		# bit 7: Vbias -> 1 (ON)
 		# bit 6: Conversion Mode -> 0 (MANUAL)
 		# bit5: 1-shot ->1 (ON)
-		# bit4: 3-wire select -> 1 (3 wire config)
+		# bit4: 3-wire select -> 0 (2 wire config)
 		# bits 3-2: fault detection cycle -> 0 (none)
 		# bit 1: fault status clear -> 1 (clear any fault)
-		# bit 0: 50/60 Hz filter select -> 0 (60Hz)
+		# bit 0: 50/60 Hz filter select -> 1 (50Hz)
 		#
 		# 0b11010010 or 0xD2 for continuous auto conversion 
 		# at 60Hz (faster conversion)
 		#
 
 		#one shot
-		self.writeRegister(0, 0xB2)
+		self.writeRegister(0, 0xA3)
 
 		# conversion time is less than 100ms
 		time.sleep(.1) #give it 100ms for conversion
@@ -167,14 +167,14 @@ class max31865(object):
 		return byte	
 	
 	def calcPT100Temp(self, RTD_ADC_Code):
-		R_REF = 400.0 # Reference Resistor
+		R_REF = 432.0 # Reference Resistor
 		Res0 = 100.0; # Resistance at 0 degC for 400ohm R_Ref
 		a = .00390830
 		b = -.000000577500
 		# c = -4.18301e-12 # for -200 <= T <= 0 (degC)
 		c = -0.00000000000418301
 		# c = 0 # for 0 <= T <= 850 (degC)
-		print("RTD ADC Code: %d" % RTD_ADC_Code
+		print("RTD ADC Code: %d" % RTD_ADC_Code)
 		Res_RTD = (RTD_ADC_Code * R_REF) / 32768.0 # PT100 Resistance
 		print("PT100 Resistance: %f ohms" % Res_RTD)
 		#
