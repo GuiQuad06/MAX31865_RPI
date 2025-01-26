@@ -23,6 +23,7 @@
 
 import time, math
 import RPi.GPIO as GPIO
+import argparse
 
 # import numpy
 
@@ -37,12 +38,13 @@ class max31865(object):
     temperature is calculated with the quadratic formula one being the most accurate.
     """
 
-    def __init__(self, csPin=8, misoPin=9, mosiPin=10, clkPin=11):
+    def __init__(self, args, csPin=8, misoPin=9, mosiPin=10, clkPin=11):
         self.csPin = csPin
         self.misoPin = misoPin
         self.mosiPin = mosiPin
         self.clkPin = clkPin
         self.setupGPIO()
+        self.debug = args.debug
 
     def setupGPIO(self):
         GPIO.setwarnings(False)
@@ -55,6 +57,9 @@ class max31865(object):
         GPIO.output(self.csPin, GPIO.HIGH)
         GPIO.output(self.clkPin, GPIO.LOW)
         GPIO.output(self.mosiPin, GPIO.LOW)
+
+    def print_debug(self, string):
+        return print(string) if self.debug else None
 
     def readTemp(self):
         #
@@ -87,7 +92,7 @@ class max31865(object):
         out = self.readRegisters(0, 8)
 
         conf_reg = out[0]
-        print("config register byte: %x" % conf_reg)
+        self.print_debug("config register byte: %x" % conf_reg)
 
         [rtd_msb, rtd_lsb] = [out[1], out[2]]
         rtd_ADC_Code = ((rtd_msb << 8) | rtd_lsb) >> 1
@@ -96,11 +101,11 @@ class max31865(object):
 
         [hft_msb, hft_lsb] = [out[3], out[4]]
         hft = ((hft_msb << 8) | hft_lsb) >> 1
-        print("high fault threshold: %d" % hft)
+        self.print_debug("high fault threshold: %d" % hft)
 
         [lft_msb, lft_lsb] = [out[5], out[6]]
         lft = ((lft_msb << 8) | lft_lsb) >> 1
-        print("low fault threshold: %d" % lft)
+        self.print_debug("low fault threshold: %d" % lft)
 
         status = out[7]
         #
@@ -121,6 +126,7 @@ class max31865(object):
             raise FaultError("Low threshold limit (Cable fault/short)")
         if (status & 0x04) == 1:
             raise FaultError("Overvoltage or Undervoltage Error")
+        return temp_C
 
     def writeRegister(self, regNum, dataByte):
         GPIO.output(self.csPin, GPIO.LOW)
@@ -178,10 +184,10 @@ class max31865(object):
         # c = -4.18301e-12 # for -200 <= T <= 0 (degC)
         c = -0.00000000000418301
         # c = 0 # for 0 <= T <= 850 (degC)
-        print("RTD ADC Code: %d" % RTD_ADC_Code)
+        self.print_debug("RTD ADC Code: %d" % RTD_ADC_Code)
         Res_RTD = (RTD_ADC_Code * R_REF) / 32768.0  # PT100 Resistance
-        print("PT100 Resistance: %f ohms" % Res_RTD)
-        #
+        self.print_debug("PT100 Resistance: %f ohms" % Res_RTD)
+
         # Callendar-Van Dusen equation
         # Res_RTD = Res0 * (1 + a*T + b*T**2 + c*(T-100)*T**3)
         # Res_RTD = Res0 + a*Res0*T + b*Res0*T**2 # c = 0
@@ -198,8 +204,8 @@ class max31865(object):
         # removing numpy.roots will greatly speed things up
         # temp_C_numpy = numpy.roots([c*Res0, -c*Res0*100, b*Res0, a*Res0, (Res0 - Res_RTD)])
         # temp_C_numpy = abs(temp_C_numpy[-1])
-        print("Straight Line Approx. Temp: %f degC" % temp_C_line)
-        print("Callendar-Van Dusen Temp (degC > 0): %f degC" % temp_C)
+        self.print_debug("Straight Line Approx. Temp: %f degC" % temp_C_line)
+        self.print_debug("Callendar-Van Dusen Temp (degC > 0): %f degC" % temp_C)
         # print("Solving Full Callendar-Van Dusen using numpy: %f" %  temp_C_numpy)
         if temp_C < 0:  # use straight line approximation if less than 0
             # Can also use python lib numpy to solve cubic
@@ -215,10 +221,15 @@ class FaultError(Exception):
 if __name__ == "__main__":
     import max31865
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--debug', dest="debug", action='store_true', default=False, help='Printing additional debug info out there')
+    options = parser.parse_args()
+
     csPin = 8
     misoPin = 9
     mosiPin = 10
     clkPin = 11
-    max = max31865.max31865(csPin, misoPin, mosiPin, clkPin)
+    max = max31865.max31865(options, csPin, misoPin, mosiPin, clkPin)
     tempC = max.readTemp()
+    print(int(tempC))
     GPIO.cleanup()
